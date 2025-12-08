@@ -1,0 +1,10 @@
+__id__ = "swag_plugin"
+__name__ = "Swag Brutal"
+__author__ = "@Xewonsik"
+__version__ = "1.1.0"
+__description__ = """Описание: Отправляет случайные фразы"""
+__description__ = """Команды:
+.swag - отправляет случайную фразу"""
+
+__icon__ = "sPluginIDE/3"
+__min_version__ = "11.12.1"
