@@ -1,0 +1,120 @@
+class SwagPlugin(BasePlugin):
+    def __init__(self):
+        super().__init__()
+
+    def on_plugin_load(self):
+        self.add_on_send_message_hook()
+        self.log("Swag Brutal Plugin загружен!")
+
+    def _get_all_phrases(self):
+        """Собирает стандартные и/или пользовательские фразы в один список."""
+        custom_phrases = []
+        custom_phrase_count = self.get_setting("custom_phrase_count", 0)
+        for i in range(1, custom_phrase_count + 1):
+            phrase = self.get_setting(f"custom_phrase_{i}", "").strip()
+            if phrase:
+                custom_phrases.append(phrase)
+        
+        use_only_custom = self.get_setting("only_custom_phrases", False)
+        
+        if use_only_custom:
+            return custom_phrases
+        else:
+            all_phrases = DEFAULT_SWAG_PHRASES[:]
+            all_phrases.extend(custom_phrases)
+            return all_phrases
+
+    def _refresh_settings_page(self):
+        """Пересобирает страницу настроек, чтобы отобразить изменения."""
+        try:
+            fragment = get_last_fragment()
+            if fragment and hasattr(fragment, "rebuildAllFragments"):
+                fragment.rebuildAllFragments(True)
+        except Exception as e:
+            self.log(f"Не удалось обновить страницу настроек: {e}")
+
+    def _add_phrase(self, view):
+        """Увеличивает счетчик фраз и обновляет UI."""
+        count = self.get_setting("custom_phrase_count", 0)
+        self.set_setting("custom_phrase_count", count + 1)
+        self._refresh_settings_page()
+
+    def _remove_phrase(self, view, index_to_remove):
+        """Удаляет фразу по индексу и сдвигает остальные."""
+        count = self.get_setting("custom_phrase_count", 0)
+        
+        for i in range(index_to_remove, count):
+            next_phrase = self.get_setting(f"custom_phrase_{i + 1}", "")
+            self.set_setting(f"custom_phrase_{i}", next_phrase)
+        
+        self.set_setting(f"custom_phrase_{count}", "")
+        self.set_setting("custom_phrase_count", count - 1)
+        self._refresh_settings_page()
+
+    def create_settings(self):
+        """Создаем страницу настроек для плагина."""
+        settings_list = [
+            Header(text="Настройки Swag Brutal"),
+            Switch(
+                key="only_custom_phrases",
+                text="Использовать только свои фразы",
+                subtext="Если включено, стандартные фразы использоваться не будут",
+                default=False,
+                icon="filter_custom_solar"
+            ),
+            Divider(text="Команда: .swag - отправить брутальную фразу"),
+            Header(text="Пользовательские брутальные фразы")
+        ]
+        
+        custom_phrase_count = self.get_setting("custom_phrase_count", 0)
+        display_count = max(1, custom_phrase_count)
+
+        for i in range(1, display_count + 1):
+            settings_list.extend([
+                Input(
+                    key=f"custom_phrase_{i}",
+                    text=f"Своя фраза #{i}",
+                    default="",
+                    subtext="Добавьте свою брутальную фразу",
+                    icon="msg_edit_solar"
+                ),
+            ])
+            
+            if i <= custom_phrase_count and custom_phrase_count > 0:
+                settings_list.append(Text(
+                    text=f"Удалить фразу #{i}",
+                    icon="msg_delete_solar",
+                    red=True,
+                    on_click=lambda view, index=i: self._remove_phrase(view, index)
+                ))
+            settings_list.append(Divider())
+
+        settings_list.append(Text(
+            text="Добавить еще фразу",
+            icon="msg_addfolder_solar",
+            accent=True,
+            on_click=self._add_phrase
+        ))
+
+        return settings_list
+
+    def on_send_message_hook(self, account, params: Any) -> HookResult:
+        if not isinstance(params.message, str):
+            return HookResult()
+
+        msg = params.message.strip().lower()
+        peer_id = params.peer
+
+        # Команда .swag - отправить одну случайную фразу
+        if msg == ".swag":
+            all_phrases = self._get_all_phrases()
+            if not all_phrases:
+                BulletinHelper.show_error("Нет фраз для отправки! Добавьте их в настройках.", get_last_fragment())
+                return HookResult(strategy=HookStrategy.CANCEL)
+
+            random_phrase = random.choice(all_phrases)
+            send_message({"peer": peer_id, "message": random_phrase})
+            BulletinHelper.show_info("Брутальная фраза отправлена! ⚔️", get_last_fragment())
+            return HookResult(strategy=HookStrategy.CANCEL)
+
+        return HookResult()
