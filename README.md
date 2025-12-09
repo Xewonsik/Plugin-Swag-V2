@@ -1,4 +1,4 @@
-Plugin Swag v2
+# Plugin Swag v2
 
 Плагин Swag v2 - это плагин для брутальной мотивации
 
